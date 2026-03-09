@@ -8,11 +8,19 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
 };
 
+#[derive(PartialEq)]
+enum FocusedPanel {
+    ConversationList,
+    ChatInput,
+}
+
 pub struct App {
     exit: bool,
+    focused_panel: FocusedPanel,
     conversations: Vec<String>,
     conversation_state: ListState,
     selected_conversation: Option<usize>,
+    input_buffer: String,
 }
 
 impl App {
@@ -22,9 +30,11 @@ impl App {
         list_state.select(Some(0));
         Self {
             exit: false,
+            focused_panel: FocusedPanel::ConversationList,
             conversations,
             conversation_state: list_state,
             selected_conversation: None,
+            input_buffer: String::new(),
         }
     }
 
@@ -38,16 +48,47 @@ impl App {
 
     fn handle_events(&mut self) -> Result<()> {
         if let Event::Key(key) = event::read()? {
+            // Global keybindings
             match (key.modifiers, key.code) {
-                (KeyModifiers::CONTROL, KeyCode::Char('q')) => self.exit = true,
-                (_, KeyCode::Up) => self.move_up(),
-                (_, KeyCode::Char('k')) => self.move_up(),
-                (_, KeyCode::Down) => self.move_down(),
-                (_, KeyCode::Char('j')) => self.move_down(),
-                (_, KeyCode::Enter) => {
-                    self.selected_conversation = self.conversation_state.selected();
+                (KeyModifiers::CONTROL, KeyCode::Char('q')) => {
+                    self.exit = true;
+                    return Ok(());
+                }
+                (_, KeyCode::Tab) => {
+                    if self.selected_conversation.is_some() {
+                        self.focused_panel = match self.focused_panel {
+                            FocusedPanel::ConversationList => FocusedPanel::ChatInput,
+                            FocusedPanel::ChatInput => FocusedPanel::ConversationList,
+                        };
+                    }
+                    return Ok(());
+                }
+                (_, KeyCode::Esc) => {
+                    self.focused_panel = FocusedPanel::ConversationList;
+                    return Ok(());
                 }
                 _ => {}
+            }
+
+            // Panel-specific keybindings
+            match self.focused_panel {
+                FocusedPanel::ConversationList => match key.code {
+                    KeyCode::Up | KeyCode::Char('k') => self.move_up(),
+                    KeyCode::Down | KeyCode::Char('j') => self.move_down(),
+                    KeyCode::Enter => {
+                        self.selected_conversation = self.conversation_state.selected();
+                        self.focused_panel = FocusedPanel::ChatInput;
+                        self.input_buffer.clear();
+                    }
+                    _ => {}
+                },
+                FocusedPanel::ChatInput => match key.code {
+                    KeyCode::Char(c) => self.input_buffer.push(c),
+                    KeyCode::Backspace => {
+                        self.input_buffer.pop();
+                    }
+                    _ => {}
+                },
             }
         }
         Ok(())
