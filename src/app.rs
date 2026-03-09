@@ -119,9 +119,15 @@ impl App {
         let layout = Layout::horizontal([Constraint::Length(40), Constraint::Min(1)]).split(area);
 
         // --- Conversation List ---
+        let sidebar_border_style = if self.focused_panel == FocusedPanel::ConversationList {
+            Style::default().fg(Color::Cyan)
+        } else {
+            Style::default()
+        };
         let conversation_list = Block::default()
             .title(" Conversations ")
-            .borders(Borders::ALL);
+            .borders(Borders::ALL)
+            .border_style(sidebar_border_style);
 
         let items: Vec<ListItem> = self
             .conversations
@@ -159,9 +165,24 @@ impl App {
                 frame.render_widget(messages, right_layout[1]);
 
                 // Input box
-                let input = Paragraph::new(Line::from("Type a message..."))
-                    .style(Style::default().fg(Color::DarkGray))
-                    .block(Block::default().borders(Borders::ALL));
+                let input_border_style = if self.focused_panel == FocusedPanel::ChatInput {
+                    Style::default().fg(Color::Cyan)
+                } else {
+                    Style::default()
+                };
+                let input_text = if self.input_buffer.is_empty() {
+                    Line::from(Span::styled(
+                        "Type a message...",
+                        Style::default().fg(Color::DarkGray),
+                    ))
+                } else {
+                    Line::from(self.input_buffer.as_str())
+                };
+                let input = Paragraph::new(input_text).block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_style(input_border_style),
+                );
                 frame.render_widget(input, right_layout[2]);
             }
             None => {
