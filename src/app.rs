@@ -17,7 +17,7 @@ enum FocusedPanel {
 pub struct App {
     exit: bool,
     focused_panel: FocusedPanel,
-    conversations: Vec<String>,
+    conversations: Vec<User>,
     conversation_state: ListState,
     selected_conversation: Option<usize>,
     input_buffer: String,
@@ -25,7 +25,7 @@ pub struct App {
 
 impl App {
     pub fn new() -> Self {
-        let conversations = vec!["Alice".to_string(), "Bob".to_string()];
+        let conversations = vec![User::new(0, "Alice"), User::new(1, "Bob")];
         let mut list_state = ListState::default();
         list_state.select(Some(0));
         Self {
@@ -132,7 +132,7 @@ impl App {
         let items: Vec<ListItem> = self
             .conversations
             .iter()
-            .map(|name| ListItem::new(Line::from(Span::raw(name.as_str()))))
+            .map(|u| ListItem::from(u))
             .collect();
 
         let list = List::new(items).block(conversation_list).highlight_style(
@@ -146,7 +146,7 @@ impl App {
         // --- Right panel ---
         match self.selected_conversation {
             Some(idx) => {
-                let name = &self.conversations[idx];
+                let user = &self.conversations[idx];
 
                 let right_layout = Layout::vertical([
                     Constraint::Length(3), // header
@@ -156,7 +156,7 @@ impl App {
                 .split(layout[1]);
 
                 // Header
-                let header = Paragraph::new(Line::from(name.as_str()))
+                let header = Paragraph::new(Line::from(user.display_name()))
                     .block(Block::default().borders(Borders::ALL));
                 frame.render_widget(header, right_layout[0]);
 
