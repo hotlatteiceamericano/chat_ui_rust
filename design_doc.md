@@ -1,4 +1,4 @@
-# Design
+# Visual Design
 ╭─────────────────┬──────────────────────────────────╮
 │ Conversations   │ Alice                            │
 │─────────────────├──────────────────────────────────┤
@@ -44,6 +44,32 @@
 │                 ├──────────────────────────────────┤
 │                 │ Type a message...                │
 ╰─────────────────┴──────────────────────────────────╯
+
+# Async Flow
+1. whoc should be establishing websocket connection? app itself or the program itself? app itself has dependecy to the channel
+Client will have to wait for websocket server response when sending messages out. Because of this, we are designing the terminal UI to have TWO different mpsc channelse. One for handling sending messages to the server, the other one for handling receiving messages from the server.
+
+We will spawn ONE task for the sending receiver, and the websocket receiver to keep waiting for the outbound and inbound messages. Then calling websocket sender to send the message out to the server, and calling receiver sender to send the message to the App.
+
+We are allowing the runtime to decide when to process which tasks and any given momemt, to prevent the blocking of each other.
+
+# To-Study:
+┌───────────────────┬─────────────────────────────────────────────────┬─────────────────────────────────────────────────────────┐
+│                   │ Two tasks                                       │ Single task + select\!                                   │
+├───────────────────┼─────────────────────────────────────────────────┼─────────────────────────────────────────────────────────┤
+│ Concurrency model │ True parallelism — tokio can schedule them on   │ Cooperative multiplexing within one task                 │
+│                   │ different threads                                │                                                         │
+├───────────────────┼─────────────────────────────────────────────────┼─────────────────────────────────────────────────────────┤
+│ Readability       │ Each task has a single concern                   │ All logic in one place, but more complex                 │
+├───────────────────┼─────────────────────────────────────────────────┼─────────────────────────────────────────────────────────┤
+│ Cancellation      │ Independent — reader can outlive writer and     │ Natural — if either side breaks, the loop exits and     │
+│                   │ vice versa; need extra signaling (e.g., a       │ both stop                                                │
+│                   │ CancellationToken) to coordinate shutdown        │                                                         │
+├───────────────────┼─────────────────────────────────────────────────┼─────────────────────────────────────────────────────────┤
+│ Performance       │ Negligible difference for this use case          │ Slightly less overhead (one task vs two)                 │
+├───────────────────┼─────────────────────────────────────────────────┼─────────────────────────────────────────────────────────┤
+│ Error handling    │ Errors are isolated per task                     │ Centralized — one match on which branch fired            │
+└───────────────────┴─────────────────────────────────────────────────┴─────────────────────────────────────────────────────────┘
 
 # Milestones
 * able to connect to the local websocket server when starting the app

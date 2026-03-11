@@ -1,4 +1,5 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
+use chat_websocket_service_rust::message::Message;
 use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 use ratatui::{
     DefaultTerminal, Frame,
@@ -7,6 +8,9 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
 };
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+
+use crate::user::User;
 
 #[derive(PartialEq)]
 enum FocusedPanel {
@@ -21,13 +25,15 @@ pub struct App {
     conversation_state: ListState,
     selected_conversation: Option<usize>,
     input_buffer: String,
+    sending_tx: UnboundedSender<Message>,
 }
 
 impl App {
-    pub fn new() -> Self {
+    pub fn new(sending_tx: UnboundedSender<Message>) -> Self {
         let conversations = vec![User::new(0, "Alice"), User::new(1, "Bob")];
         let mut list_state = ListState::default();
         list_state.select(Some(0));
+
         Self {
             exit: false,
             focused_panel: FocusedPanel::ConversationList,
@@ -35,10 +41,13 @@ impl App {
             conversation_state: list_state,
             selected_conversation: None,
             input_buffer: String::new(),
+            sending_tx,
         }
     }
 
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
+        // event::read() is a blocking call waiting to hear from the next keystroke
+        // update this blocking call when ready to listen messages from the websokcet server
         while !self.exit {
             terminal.draw(|frame| self.draw(frame))?;
             self.handle_events()?;
@@ -87,6 +96,7 @@ impl App {
                     KeyCode::Backspace => {
                         self.input_buffer.pop();
                     }
+                    KeyCode::Enter => self.send_msg()?,
                     _ => {}
                 },
             }
@@ -119,6 +129,7 @@ impl App {
         let layout = Layout::horizontal([Constraint::Length(40), Constraint::Min(1)]).split(area);
 
         // --- Conversation List ---
+        // todo: move the conversation list to its own struct
         let sidebar_border_style = if self.focused_panel == FocusedPanel::ConversationList {
             Style::default().fg(Color::Cyan)
         } else {
@@ -144,6 +155,8 @@ impl App {
         frame.render_stateful_widget(list, layout[0], &mut self.conversation_state);
 
         // --- Right panel ---
+        // todo: move the chat window to its own struct
+        // conditionally render when there selected_conversation is Some or None
         match self.selected_conversation {
             Some(idx) => {
                 let user = &self.conversations[idx];
@@ -190,5 +203,27 @@ impl App {
                 frame.render_widget(empty, layout[1]);
             }
         }
+    }
+
+    fn send_msg(&self) -> Result<()> {
+        let user = self
+            .conversations
+            .get(self.selected_conversation.ok_or(anyhow::anyhow!(
+                "no conversation seleceted when sending messages"
+            ))?)
+            .ok_or(anyhow::anyhow!(
+                "conversation not found when sending messages"
+            ))?;
+        let msg = Message {
+            sender_id: 999,
+            receiver_id: user.id(),
+            payload: self.input_buffer.to_string(),
+        };
+
+        self.sending_tx
+            .send(msg)
+            .context("failed sending message to sending receiver")?;
+
+        Ok(())
     }
 }
