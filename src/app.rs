@@ -26,10 +26,14 @@ pub struct App {
     selected_conversation: Option<usize>,
     input_buffer: String,
     sending_tx: UnboundedSender<Message>,
+    receiving_rx: UnboundedReceiver<Message>,
 }
 
 impl App {
-    pub fn new(sending_tx: UnboundedSender<Message>) -> Self {
+    pub fn new(
+        sending_tx: UnboundedSender<Message>,
+        receiving_rx: UnboundedReceiver<Message>,
+    ) -> Self {
         let conversations = vec![User::new(0, "Alice"), User::new(1, "Bob")];
         let mut list_state = ListState::default();
         list_state.select(Some(0));
@@ -42,6 +46,7 @@ impl App {
             selected_conversation: None,
             input_buffer: String::new(),
             sending_tx,
+            receiving_rx,
         }
     }
 
