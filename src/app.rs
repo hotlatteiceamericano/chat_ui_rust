@@ -1,6 +1,6 @@
 use chat_websocket_service_rust::message::Message;
 use color_eyre::eyre::{self, Context, Result};
-use crossterm::event::{self, Event, KeyCode, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{
     DefaultTerminal, Frame,
     layout::{Constraint, Layout},
@@ -56,58 +56,58 @@ impl App {
             terminal.draw(|frame| self.draw(frame))?;
             match self.app_rx.recv().await {
                 Some(AppEvents::InboundMessage { message }) => {}
-                Some(AppEvents::Terminal) => {}
+                Some(AppEvents::KeyEvent { key_event }) => {
+                    self.handle_key_event(key_event)?;
+                }
                 None => {}
             }
         }
         Ok(())
     }
 
-    fn handle_events(&mut self) -> Result<()> {
-        if let Event::Key(key) = event::read()? {
-            // Global keybindings
-            match (key.modifiers, key.code) {
-                (KeyModifiers::CONTROL, KeyCode::Char('q')) => {
-                    self.exit = true;
-                    return Ok(());
+    fn handle_key_event(&mut self, key_event: KeyEvent) -> Result<()> {
+        // Global keybindings
+        match (key_event.modifiers, key_event.code) {
+            (KeyModifiers::CONTROL, KeyCode::Char('q')) => {
+                self.exit = true;
+                return Ok(());
+            }
+            (_, KeyCode::Tab) => {
+                if self.selected_conversation.is_some() {
+                    self.focused_panel = match self.focused_panel {
+                        FocusedPanel::ConversationList => FocusedPanel::ChatInput,
+                        FocusedPanel::ChatInput => FocusedPanel::ConversationList,
+                    };
                 }
-                (_, KeyCode::Tab) => {
-                    if self.selected_conversation.is_some() {
-                        self.focused_panel = match self.focused_panel {
-                            FocusedPanel::ConversationList => FocusedPanel::ChatInput,
-                            FocusedPanel::ChatInput => FocusedPanel::ConversationList,
-                        };
-                    }
-                    return Ok(());
-                }
-                (_, KeyCode::Esc) => {
-                    self.focused_panel = FocusedPanel::ConversationList;
-                    return Ok(());
+                return Ok(());
+            }
+            (_, KeyCode::Esc) => {
+                self.focused_panel = FocusedPanel::ConversationList;
+                return Ok(());
+            }
+            _ => {}
+        }
+
+        // Panel-specific keybindings
+        match self.focused_panel {
+            FocusedPanel::ConversationList => match key_event.code {
+                KeyCode::Up | KeyCode::Char('k') => self.move_up(),
+                KeyCode::Down | KeyCode::Char('j') => self.move_down(),
+                KeyCode::Enter => {
+                    self.selected_conversation = self.conversation_state.selected();
+                    self.focused_panel = FocusedPanel::ChatInput;
+                    self.input_buffer.clear();
                 }
                 _ => {}
-            }
-
-            // Panel-specific keybindings
-            match self.focused_panel {
-                FocusedPanel::ConversationList => match key.code {
-                    KeyCode::Up | KeyCode::Char('k') => self.move_up(),
-                    KeyCode::Down | KeyCode::Char('j') => self.move_down(),
-                    KeyCode::Enter => {
-                        self.selected_conversation = self.conversation_state.selected();
-                        self.focused_panel = FocusedPanel::ChatInput;
-                        self.input_buffer.clear();
-                    }
-                    _ => {}
-                },
-                FocusedPanel::ChatInput => match key.code {
-                    KeyCode::Char(c) => self.input_buffer.push(c),
-                    KeyCode::Backspace => {
-                        self.input_buffer.pop();
-                    }
-                    KeyCode::Enter => self.send_msg()?,
-                    _ => {}
-                },
-            }
+            },
+            FocusedPanel::ChatInput => match key_event.code {
+                KeyCode::Char(c) => self.input_buffer.push(c),
+                KeyCode::Backspace => {
+                    self.input_buffer.pop();
+                }
+                KeyCode::Enter => self.send_msg()?,
+                _ => {}
+            },
         }
         Ok(())
     }

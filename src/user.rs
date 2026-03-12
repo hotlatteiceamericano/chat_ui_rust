@@ -1,7 +1,4 @@
-use ratatui::{
-    text::{Line, Span},
-    widgets::ListItem,
-};
+use ratatui::{text::Line, widgets::ListItem};
 
 pub struct User {
     id: u32,

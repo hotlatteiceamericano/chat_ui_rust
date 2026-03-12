@@ -1,4 +1,6 @@
 use chat_websocket_service_rust::message::Message;
+use color_eyre::eyre::Result;
+use crossterm::event::{Event, EventStream};
 use futures_util::{
     SinkExt, StreamExt,
     stream::{SplitSink, SplitStream},
@@ -33,7 +35,7 @@ async fn main() -> color_eyre::Result<()> {
 
     spawn_outbound_message_task(outbound_rx, ws_sender);
 
-    spawn_terminal_task(app_tx.clone());
+    spawn_terminal_task(app_tx.clone())?;
 
     let mut app = App::new(app_rx, outbound_tx);
     let result = app.run(&mut terminal).await;
@@ -85,10 +87,24 @@ fn spawn_outbound_message_task(
     });
 }
 
-fn spawn_terminal_task(app_tx: UnboundedSender<AppEvents>) {
+fn spawn_terminal_task(app_tx: UnboundedSender<AppEvents>) -> Result<()> {
+    let mut reader = EventStream::new();
     tokio::spawn(async move {
-        // todo: listen for crossterm's StreamEvent
+        loop {
+            match reader.next().await {
+                Some(Ok(Event::Key(key_event))) => {
+                    app_tx
+                        .send(AppEvents::KeyEvent { key_event })
+                        .expect("cannot send terminal events to application");
+                }
+
+                Some(Ok(_)) => {}
+                Some(Err(_)) => {}
+                None => {}
+            }
+        }
     });
+    Ok(())
 }
 
 async fn spawn_websocket_connections() -> (
