@@ -1,5 +1,5 @@
-use anyhow::{Context, Result};
 use chat_websocket_service_rust::message::Message;
+use color_eyre::eyre::{self, Context, Result};
 use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 use ratatui::{
     DefaultTerminal, Frame,
@@ -10,7 +10,7 @@ use ratatui::{
 };
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
-use crate::user::User;
+use crate::{app_event::AppEvents, user::User};
 
 #[derive(PartialEq)]
 enum FocusedPanel {
@@ -25,14 +25,14 @@ pub struct App {
     conversation_state: ListState,
     selected_conversation: Option<usize>,
     input_buffer: String,
-    sending_tx: UnboundedSender<Message>,
-    receiving_rx: UnboundedReceiver<Message>,
+    app_rx: UnboundedReceiver<AppEvents>,
+    outbound_tx: UnboundedSender<Message>,
 }
 
 impl App {
     pub fn new(
-        sending_tx: UnboundedSender<Message>,
-        receiving_rx: UnboundedReceiver<Message>,
+        app_rx: UnboundedReceiver<AppEvents>,
+        outbound_tx: UnboundedSender<Message>,
     ) -> Self {
         let conversations = vec![User::new(0, "Alice"), User::new(1, "Bob")];
         let mut list_state = ListState::default();
@@ -45,17 +45,20 @@ impl App {
             conversation_state: list_state,
             selected_conversation: None,
             input_buffer: String::new(),
-            sending_tx,
-            receiving_rx,
+            app_rx,
+            outbound_tx,
         }
     }
 
-    pub fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
-        // event::read() is a blocking call waiting to hear from the next keystroke
-        // update this blocking call when ready to listen messages from the websokcet server
+    /// the main loop to draw the UI and listen for events
+    pub async fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
         while !self.exit {
             terminal.draw(|frame| self.draw(frame))?;
-            self.handle_events()?;
+            match self.app_rx.recv().await {
+                Some(AppEvents::InboundMessage { message }) => {}
+                Some(AppEvents::Terminal) => {}
+                None => {}
+            }
         }
         Ok(())
     }
@@ -213,19 +216,17 @@ impl App {
     fn send_msg(&self) -> Result<()> {
         let user = self
             .conversations
-            .get(self.selected_conversation.ok_or(anyhow::anyhow!(
+            .get(self.selected_conversation.ok_or(eyre::eyre!(
                 "no conversation seleceted when sending messages"
             ))?)
-            .ok_or(anyhow::anyhow!(
-                "conversation not found when sending messages"
-            ))?;
+            .ok_or(eyre::eyre!("conversation not found when sending messages"))?;
         let msg = Message {
             sender_id: 999,
             receiver_id: user.id(),
             payload: self.input_buffer.to_string(),
         };
 
-        self.sending_tx
+        self.outbound_tx
             .send(msg)
             .context("failed sending message to sending receiver")?;
 

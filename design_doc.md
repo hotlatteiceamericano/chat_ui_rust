@@ -46,30 +46,39 @@
 ╰─────────────────┴──────────────────────────────────╯
 
 # Async Flow
-1. whoc should be establishing websocket connection? app itself or the program itself? app itself has dependecy to the channel
-Client will have to wait for websocket server response when sending messages out. Because of this, we are designing the terminal UI to have TWO different mpsc channelse. One for handling sending messages to the server, the other one for handling receiving messages from the server.
+1. outbound task: a task to handle message sending to the websocket server
+1. inbound task: a task handle message receiving from the websokcet server
+1. keyboard event: a task to listen for user key presses
+1. question: should I put the central channel in a task?
 
-We will spawn ONE task for the sending receiver, and the websocket receiver to keep waiting for the outbound and inbound messages. Then calling websocket sender to send the message out to the server, and calling receiver sender to send the message to the App.
+my plan:
+1. create an app channel, which of course app will receive app_rx
+1. create a keyboard task, takes an app_tx clone
+1. create a websocket inbound task, takes an app_tx clone to update the conversation list and chat window
+1. create a websokcet outbound task, with a ountbound rx. provide an outbound tx's clone to the app
 
-We are allowing the runtime to decide when to process which tasks and any given momemt, to prevent the blocking of each other.
+requirements:
+app:
+1. no task, use main thread
+1. takes app_rx
+1. takes outbound_tx
 
-# To-Study:
-┌───────────────────┬─────────────────────────────────────────────────┬─────────────────────────────────────────────────────────┐
-│                   │ Two tasks                                       │ Single task + select\!                                   │
-├───────────────────┼─────────────────────────────────────────────────┼─────────────────────────────────────────────────────────┤
-│ Concurrency model │ True parallelism — tokio can schedule them on   │ Cooperative multiplexing within one task                 │
-│                   │ different threads                                │                                                         │
-├───────────────────┼─────────────────────────────────────────────────┼─────────────────────────────────────────────────────────┤
-│ Readability       │ Each task has a single concern                   │ All logic in one place, but more complex                 │
-├───────────────────┼─────────────────────────────────────────────────┼─────────────────────────────────────────────────────────┤
-│ Cancellation      │ Independent — reader can outlive writer and     │ Natural — if either side breaks, the loop exits and     │
-│                   │ vice versa; need extra signaling (e.g., a       │ both stop                                                │
-│                   │ CancellationToken) to coordinate shutdown        │                                                         │
-├───────────────────┼─────────────────────────────────────────────────┼─────────────────────────────────────────────────────────┤
-│ Performance       │ Negligible difference for this use case          │ Slightly less overhead (one task vs two)                 │
-├───────────────────┼─────────────────────────────────────────────────┼─────────────────────────────────────────────────────────┤
-│ Error handling    │ Errors are isolated per task                     │ Centralized — one match on which branch fired            │
-└───────────────────┴─────────────────────────────────────────────────┴─────────────────────────────────────────────────────────┘
+inbound task:
+1. takes app_tx clone
+1. takes ws_receiver
+
+outbound task:
+1. takes outbound_rx
+1. takes ws_sender
+
+terminal task:
+1. takes app_tx clone
+
+summary:
+1. inbound messages do not need a channel, but need a task (uses app tx clone instead)
+1. terminal events do not need a channel, but need a task (uses app tx clone)
+1. outbound messages need both a channel and a task
+1. app needs a channel and uses main thread
 
 # Milestones
 * able to connect to the local websocket server when starting the app
