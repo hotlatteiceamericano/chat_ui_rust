@@ -105,7 +105,10 @@ impl App {
                 KeyCode::Backspace => {
                     self.input_buffer.pop();
                 }
-                KeyCode::Enter => self.send_msg()?,
+                KeyCode::Enter => {
+                    self.send_msg()?;
+                    self.input_buffer.clear();
+                }
                 _ => {}
             },
         }
