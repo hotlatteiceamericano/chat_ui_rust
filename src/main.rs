@@ -1,3 +1,5 @@
+use std::io::{self, Write};
+
 use chat_websocket_service_rust::message::Message;
 use color_eyre::eyre::Result;
 use crossterm::event::{Event, EventStream};
@@ -22,8 +24,13 @@ pub mod user;
 
 #[tokio::main]
 async fn main() -> color_eyre::Result<()> {
-    // todo: ask for user id from the input after cargo run
     color_eyre::install()?;
+
+    print!("Enter your user ID: ");
+    io::stdout().flush()?;
+    let mut input = String::new();
+    io::stdin().read_line(&mut input)?;
+    let current_user_id: u32 = input.trim().parse().expect("invalid user ID");
 
     let mut terminal = ratatui::init();
 
@@ -36,8 +43,6 @@ async fn main() -> color_eyre::Result<()> {
     spawn_outbound_message_task(outbound_rx, ws_sender);
 
     spawn_terminal_task(app_tx.clone())?;
-
-    let current_user_id: u32 = 0; // todo: get from user input
     let mut app = App::new(current_user_id, app_rx, outbound_tx);
     let result = app.run(&mut terminal).await;
 
