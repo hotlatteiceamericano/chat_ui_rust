@@ -23,6 +23,10 @@ impl User {
 
 impl<'a> From<&'a User> for ListItem<'a> {
     fn from(value: &'a User) -> ListItem<'a> {
-        ListItem::new(Line::from(value.display_name()))
+        ListItem::new(Line::from(format!(
+            "{}({})",
+            value.display_name(),
+            value.id()
+        )))
     }
 }
