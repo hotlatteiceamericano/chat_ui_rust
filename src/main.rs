@@ -29,7 +29,7 @@ async fn main() -> color_eyre::Result<()> {
 
     let (app_tx, app_rx) = mpsc::unbounded_channel::<AppEvents>();
     let (outbound_tx, outbound_rx) = mpsc::unbounded_channel::<Message>();
-    let (ws_sender, ws_receiver) = spawn_websocket_connections().await;
+    let (ws_sender, ws_receiver) = connect_websocket().await;
 
     spawn_inbound_message_task(app_tx.clone(), ws_receiver);
 
@@ -37,7 +37,8 @@ async fn main() -> color_eyre::Result<()> {
 
     spawn_terminal_task(app_tx.clone())?;
 
-    let mut app = App::new(app_rx, outbound_tx);
+    let current_user_id: u32 = 0; // todo: get from user input
+    let mut app = App::new(current_user_id, app_rx, outbound_tx);
     let result = app.run(&mut terminal).await;
 
     ratatui::restore();
@@ -53,7 +54,6 @@ fn spawn_inbound_message_task(
             let _result = match m {
                 // todo: move each arm into its own function
                 tungstenite::Message::Text(text) => {
-                    println!("received text messages from websocket server: {:?}", text);
                     let message: Message = serde_json::from_str(text.as_str())
                         .expect("cannot serialize messages received from the websocket server");
                     app_tx
@@ -107,7 +107,7 @@ fn spawn_terminal_task(app_tx: UnboundedSender<AppEvents>) -> Result<()> {
     Ok(())
 }
 
-async fn spawn_websocket_connections() -> (
+async fn connect_websocket() -> (
     SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, tungstenite::Message>,
     SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
 ) {
