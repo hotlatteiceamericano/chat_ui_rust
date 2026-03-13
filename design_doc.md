@@ -45,40 +45,20 @@
 │                 │ Type a message...                │
 ╰─────────────────┴──────────────────────────────────╯
 
-# Async Flow
-1. outbound task: a task to handle message sending to the websocket server
-1. inbound task: a task handle message receiving from the websokcet server
-1. keyboard event: a task to listen for user key presses
-1. question: should I put the central channel in a task?
+# Async Design
+In order to prevent various events blocking the UI responsvesness, this app spawns future tasks to handle events. There are three tasks for now.
 
-my plan:
-1. create an app channel, which of course app will receive app_rx
-1. create a keyboard task, takes an app_tx clone
-1. create a websocket inbound task, takes an app_tx clone to update the conversation list and chat window
-1. create a websokcet outbound task, with a ountbound rx. provide an outbound tx's clone to the app
+### Main Thread
+Main thread runs the application, and the application will be waiting for events to arrive from the central channel. Different sources will clone for their own transmitter to ask for the app to respond to it.
 
-requirements:
-app:
-1. no task, use main thread
-1. takes app_rx
-1. takes outbound_tx
+### Inbound Message
+Spawining a task to handle the message sent from the websocket server. It takes app transmitter's clone and a websocket receiver. Upon new message arrives, it will forward that message to app's central channel via app transmitter. 
 
-inbound task:
-1. takes app_tx clone
-1. takes ws_receiver
+### Terminal Event
+Spawning a task to handle the event terminal, will only support keyboard event initially. Similar to Inbound Message, it takes app transmitter's clone to forward the messages to the app.
 
-outbound task:
-1. takes outbound_rx
-1. takes ws_sender
-
-terminal task:
-1. takes app_tx clone
-
-summary:
-1. inbound messages do not need a channel, but need a task (uses app tx clone instead)
-1. terminal events do not need a channel, but need a task (uses app tx clone)
-1. outbound messages need both a channel and a task
-1. app needs a channel and uses main thread
+### Outbound Message
+Also spawn a task to send the message to websocket server. It creates its own channel and provide its transmitter to the app for app the send the message to the server. 
 
 # Milestones
 * able to connect to the local websocket server when starting the app
