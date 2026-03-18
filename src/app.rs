@@ -134,6 +134,9 @@ impl App {
     }
 
     fn move_down(&mut self) {
+        if self.conversations.is_empty() {
+            return;
+        }
         let i = match self.conversation_state.selected() {
             Some(i) if i < self.conversations.len() - 1 => i + 1,
             Some(i) => i,
@@ -256,6 +259,9 @@ impl App {
     }
 
     fn send_msg(&mut self) -> Result<()> {
+        if self.input_buffer.is_empty() {
+            return Ok(());
+        }
         let user = self
             .conversations
             .get(self.selected_conversation.ok_or(eyre::eyre!(
