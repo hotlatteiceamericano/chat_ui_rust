@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use chat_websocket_service_rust::message::Message;
+use chat_common::{message::Message, user::User};
 use color_eyre::eyre::{self, Context, Result};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{
@@ -12,7 +12,7 @@ use ratatui::{
 };
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
-use crate::{app_event::AppEvents, user::User};
+use crate::app_event::AppEvents;
 
 #[derive(PartialEq)]
 enum FocusedPanel {

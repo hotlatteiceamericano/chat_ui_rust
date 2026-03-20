@@ -1,4 +1,4 @@
-use chat_websocket_service_rust::message::Message;
+use chat_common::message::Message;
 use crossterm::event::KeyEvent;
 
 pub enum AppEvents {

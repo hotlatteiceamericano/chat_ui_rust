@@ -10,7 +10,7 @@ anyhow = "1.0.102"
 tokio = { version = "1.50.0", features = ["rt-multi-thread", "macros", "sync"] }
 tokio-tungstenite = { version = "0.28.0", features = ["connect"] }
 futures-util = "0.3.32"
-chat_websocket_service_rust = {git="https://github.com/hotlatteiceamericano/chat_websocket_service_rust.git"}
 serde_json = "1.0.149"
 serde = "1.0.228"
 color-eyre = "0.6.5"
+chat_common = {git="https://github.com/hotlatteiceamericano/chat_common"}

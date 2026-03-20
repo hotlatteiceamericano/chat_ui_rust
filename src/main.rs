@@ -1,6 +1,6 @@
 use std::io::{self, Write};
 
-use chat_websocket_service_rust::message::Message;
+use chat_common::message::Message;
 use color_eyre::eyre::Result;
 use crossterm::event::{Event, EventStream};
 use futures_util::{
@@ -20,7 +20,6 @@ use crate::{app::App, app_event::AppEvents};
 
 pub mod app;
 pub mod app_event;
-pub mod user;
 
 #[tokio::main]
 async fn main() -> color_eyre::Result<()> {
