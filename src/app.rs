@@ -39,7 +39,10 @@ impl App {
         app_rx: UnboundedReceiver<AppEvents>,
         outbound_tx: UnboundedSender<Message>,
     ) -> Self {
-        let conversations = vec![User::new(1, "Alice"), User::new(2, "Bob")];
+        let conversations = vec![
+            User::new(1, "Alice", String::from("alice@chat.com")),
+            User::new(2, "Bob", String::from("Bob@chat.com")),
+        ];
         let mut list_state = ListState::default();
         list_state.select(Some(0));
 
