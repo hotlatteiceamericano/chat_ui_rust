@@ -14,3 +14,4 @@ serde_json = "1.0.149"
 serde = "1.0.228"
 color-eyre = "0.6.5"
 chat_common = {git="https://github.com/hotlatteiceamericano/chat_common"}
+reqwest = {version = "0.12", features = ["json"]}

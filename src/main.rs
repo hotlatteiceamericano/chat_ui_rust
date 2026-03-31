@@ -16,33 +16,51 @@ use tokio_tungstenite::{
     tungstenite::{self, client::IntoClientRequest},
 };
 
-use crate::{app::App, app_event::AppEvents};
+use crate::{app::App, app_event::AppEvents, http_server::HttpServer};
 
 pub mod app;
 pub mod app_event;
+pub mod http_server;
 
 #[tokio::main]
 async fn main() -> color_eyre::Result<()> {
+    // todo: add tracing
+    let http_server_url = std::env::var("HTTP_SERVER_URL").expect("HTTP server url required");
+
     color_eyre::install()?;
 
     print!("Enter your user ID: ");
     io::stdout().flush()?;
     let mut input = String::new();
     io::stdin().read_line(&mut input)?;
-    let current_user_id: u32 = input.trim().parse().expect("invalid user ID");
+    let user_id = input.trim().to_string();
+
+    let http_server = HttpServer::new(http_server_url);
+    http_server.login(&user_id);
+
+    print!("Enter the OTP: ");
+    io::stdout().flush()?;
+    let mut input = String::new();
+    io::stdin().read_line(&mut input)?;
+    let otp = input.trim().to_string();
+    let auth_response = http_server.auth(&otp);
 
     let mut terminal = ratatui::init();
 
     let (app_tx, app_rx) = mpsc::unbounded_channel::<AppEvents>();
     let (outbound_tx, outbound_rx) = mpsc::unbounded_channel::<Message>();
-    let (ws_sender, ws_receiver) = connect_websocket().await;
+    let (ws_sender, ws_receiver) = connect_websocket(&user_id, &auth_response.jwt_token).await?;
 
     spawn_inbound_message_task(app_tx.clone(), ws_receiver);
 
     spawn_outbound_message_task(outbound_rx, ws_sender);
 
     spawn_terminal_task(app_tx.clone())?;
-    let mut app = App::new(current_user_id, app_rx, outbound_tx);
+    let mut app = App::new(
+        user_id.parse().expect("failed to parse string"),
+        app_rx,
+        outbound_tx,
+    );
     let result = app.run(&mut terminal).await;
 
     ratatui::restore();
@@ -111,25 +129,32 @@ fn spawn_terminal_task(app_tx: UnboundedSender<AppEvents>) -> Result<()> {
     Ok(())
 }
 
-async fn connect_websocket() -> (
+async fn connect_websocket(
+    user_id: &str,
+    jwt: &str,
+) -> color_eyre::Result<(
     SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, tungstenite::Message>,
     SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
-) {
-    let uri = "ws://127.0.0.1:3000/ws";
+)> {
+    let uri = "ws://0.0.0.0:8081/ws";
     let mut request = uri.into_client_request().expect("failed to build request");
     let headers = request.headers_mut();
     headers.insert(
         "Authorization",
-        "".parse().expect("failed to parse Authorization header"),
+        format!("Bearer {}", jwt)
+            .parse()
+            .expect("failed to insert Authorization to request header"),
     );
     headers.insert(
         "User-Id",
-        "0".parse().expect("failed to parse user id header"),
+        user_id
+            .parse()
+            .expect("failed to insert user id to request header"),
     );
 
     let (ws_stream, _response) = tokio_tungstenite::connect_async(request)
         .await
-        .expect("not able to connect to websocket server");
+        .expect("failed to connect to websocket server");
 
-    ws_stream.split()
+    Ok(ws_stream.split())
 }
