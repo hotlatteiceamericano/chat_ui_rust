@@ -1,7 +1,7 @@
 use std::io::{self, Write};
 
 use chat_common::message::Message;
-use color_eyre::eyre::Result;
+use color_eyre::eyre::{Context, Result};
 use crossterm::event::{Event, EventStream};
 use futures_util::{
     SinkExt, StreamExt,
@@ -29,38 +29,45 @@ async fn main() -> color_eyre::Result<()> {
 
     color_eyre::install()?;
 
-    print!("Enter your user ID: ");
+    print!("Enter your email: ");
     io::stdout().flush()?;
     let mut input = String::new();
     io::stdin().read_line(&mut input)?;
-    let user_id = input.trim().to_string();
+    let user_email = input.trim().to_string();
 
     let http_server = HttpServer::new(http_server_url);
-    http_server.login(&user_id);
+    let login_response = http_server
+        .login(&user_email)
+        .await
+        .expect("cannot make login request");
 
     print!("Enter the OTP: ");
     io::stdout().flush()?;
     let mut input = String::new();
     io::stdin().read_line(&mut input)?;
     let otp = input.trim().to_string();
-    let auth_response = http_server.auth(&otp);
-
-    let mut terminal = ratatui::init();
+    let auth_response = http_server
+        .auth(&user_email, &otp)
+        .await
+        .expect("cannot make auth request");
 
     let (app_tx, app_rx) = mpsc::unbounded_channel::<AppEvents>();
     let (outbound_tx, outbound_rx) = mpsc::unbounded_channel::<Message>();
-    let (ws_sender, ws_receiver) = connect_websocket(&user_id, &auth_response.jwt_token).await?;
+    let (ws_sender, ws_receiver) = connect_websocket(
+        &auth_response.websocket_url,
+        &user_email,
+        &auth_response.jwt_token,
+    )
+    .await?;
 
     spawn_inbound_message_task(app_tx.clone(), ws_receiver);
 
     spawn_outbound_message_task(outbound_rx, ws_sender);
 
     spawn_terminal_task(app_tx.clone())?;
-    let mut app = App::new(
-        user_id.parse().expect("failed to parse string"),
-        app_rx,
-        outbound_tx,
-    );
+    let mut app = App::new(login_response.user_id, app_rx, outbound_tx);
+
+    let mut terminal = ratatui::init();
     let result = app.run(&mut terminal).await;
 
     ratatui::restore();
@@ -130,14 +137,16 @@ fn spawn_terminal_task(app_tx: UnboundedSender<AppEvents>) -> Result<()> {
 }
 
 async fn connect_websocket(
+    websocket_server_url: &str,
     user_id: &str,
     jwt: &str,
 ) -> color_eyre::Result<(
     SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, tungstenite::Message>,
     SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
 )> {
-    let uri = "ws://0.0.0.0:8081/ws";
-    let mut request = uri.into_client_request().expect("failed to build request");
+    let mut request = websocket_server_url
+        .into_client_request()
+        .expect("failed to build request");
     let headers = request.headers_mut();
     headers.insert(
         "Authorization",
@@ -145,16 +154,11 @@ async fn connect_websocket(
             .parse()
             .expect("failed to insert Authorization to request header"),
     );
-    headers.insert(
-        "User-Id",
-        user_id
-            .parse()
-            .expect("failed to insert user id to request header"),
-    );
+    headers.insert("User-Id", user_id.parse()?);
 
     let (ws_stream, _response) = tokio_tungstenite::connect_async(request)
         .await
-        .expect("failed to connect to websocket server");
+        .context("failed to connect to websocket server")?;
 
     Ok(ws_stream.split())
 }

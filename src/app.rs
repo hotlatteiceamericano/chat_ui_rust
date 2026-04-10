@@ -41,8 +41,8 @@ impl App {
     ) -> Self {
         // todo: read from the conversation table
         let conversations = vec![
-            User::new("Alice", String::from("alice@chat.com")),
-            User::new("Bob", String::from("Bob@chat.com")),
+            // User::new("Alice", String::from("alice@chat.com")),
+            // User::new("Bob", String::from("Bob@chat.com")),
         ];
         let mut list_state = ListState::default();
         list_state.select(Some(0));

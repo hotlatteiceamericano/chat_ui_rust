@@ -1,4 +1,5 @@
-use chat_common::{auth_response::AuthResponse, login_response::LoginResponse, user};
+use chat_common::{auth_response::AuthResponse, login_response::LoginResponse};
+use color_eyre::eyre::Context;
 
 pub struct HttpServer {
     url: String,
@@ -13,18 +14,41 @@ impl HttpServer {
         }
     }
 
-    pub fn login(&self, user_id: &str) -> LoginResponse {
-        // making http request in sync
-        LoginResponse {
-            user_id: user_id.to_owned(),
-            plain_otp: String::from(""),
-        }
+    pub async fn login(&self, user_email: &str) -> color_eyre::Result<LoginResponse> {
+        let response = self
+            .client
+            .post(self.endpoint("login"))
+            .json(&serde_json::json!({"email": user_email}))
+            .send()
+            .await
+            .context("cannot make login request to http server")?
+            .text()
+            .await
+            .context("cannot read login response body")?;
+
+        serde_json::from_str::<LoginResponse>(&response)
+            .context(format!("cannot deserialize login response: {}", response))
     }
 
-    pub fn auth(&self, otp: &str) -> AuthResponse {
-        AuthResponse {
-            websocket_url: String::from(""),
-            jwt_token: String::from(""),
-        }
+    pub async fn auth(&self, user_email: &str, otp: &str) -> color_eyre::Result<AuthResponse> {
+        let response_text = self
+            .client
+            .post(self.endpoint("auth"))
+            .json(&serde_json::json!({"email": user_email, "otp": otp}))
+            .send()
+            .await
+            .context("cannot make auth request to http server")?
+            .text()
+            .await
+            .context("cannot read auth response body")?;
+
+        serde_json::from_str::<AuthResponse>(&response_text).context(format!(
+            "cannot deserialize auth response: {}",
+            response_text
+        ))
+    }
+
+    fn endpoint(&self, path: &str) -> String {
+        format!("{}/{}", self.url, path)
     }
 }

@@ -282,7 +282,7 @@ checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 [[package]]
 name = "chat_common"
 version = "0.1.0"
-source = "git+https://github.com/hotlatteiceamericano/chat_common#3f19345b214fbed1e61329b8abd791776edbe684"
+source = "git+https://github.com/hotlatteiceamericano/chat_common#769345b9c441a12f98a56a7e6f4d3f805da76f89"
 dependencies = [
  "axum",
  "futures",
