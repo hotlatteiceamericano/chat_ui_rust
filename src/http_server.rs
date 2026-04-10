@@ -1,4 +1,4 @@
-use chat_common::{auth_response::AuthResponse, login_response::LoginResponse};
+use chat_common::{auth_response::AuthResponse, login_response::LoginResponse, user};
 
 pub struct HttpServer {
     url: String,
@@ -16,6 +16,7 @@ impl HttpServer {
     pub fn login(&self, user_id: &str) -> LoginResponse {
         // making http request in sync
         LoginResponse {
+            user_id: user_id.to_owned(),
             plain_otp: String::from(""),
         }
     }

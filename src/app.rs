@@ -21,27 +21,28 @@ enum FocusedPanel {
 }
 
 pub struct App {
-    current_user_id: u32,
+    current_user_id: String,
     exit: bool,
     focused_panel: FocusedPanel,
     conversations: Vec<User>,
     conversation_state: ListState,
     selected_conversation: Option<usize>,
     input_buffer: String,
-    messages: HashMap<u32, Vec<Message>>,
+    messages: HashMap<String, Vec<Message>>,
     app_rx: UnboundedReceiver<AppEvents>,
     outbound_tx: UnboundedSender<Message>,
 }
 
 impl App {
     pub fn new(
-        current_user_id: u32,
+        current_user_id: String,
         app_rx: UnboundedReceiver<AppEvents>,
         outbound_tx: UnboundedSender<Message>,
     ) -> Self {
+        // todo: read from the conversation table
         let conversations = vec![
-            User::new(1, "Alice", String::from("alice@chat.com")),
-            User::new(2, "Bob", String::from("Bob@chat.com")),
+            User::new("Alice", String::from("alice@chat.com")),
+            User::new("Bob", String::from("Bob@chat.com")),
         ];
         let mut list_state = ListState::default();
         list_state.select(Some(0));
@@ -273,8 +274,8 @@ impl App {
             .ok_or(eyre::eyre!("conversation not found when sending messages"))?;
         let receiver_id = user.id();
         let msg = Message {
-            sender_id: self.current_user_id,
-            receiver_id,
+            sender_id: self.current_user_id.clone(),
+            receiver_id: receiver_id.clone(),
             payload: self.input_buffer.to_string(),
         };
 
@@ -283,12 +284,12 @@ impl App {
             .context("failed sending message to sending receiver")?;
 
         let stored_msg = Message {
-            sender_id: self.current_user_id,
-            receiver_id,
+            sender_id: self.current_user_id.clone(),
+            receiver_id: receiver_id.clone(),
             payload: self.input_buffer.to_string(),
         };
         self.messages
-            .entry(receiver_id)
+            .entry(receiver_id.clone())
             .or_default()
             .push(stored_msg);
 
@@ -296,8 +297,11 @@ impl App {
     }
 
     fn handle_incoming_message(&mut self, message: Message) -> Result<()> {
-        let sender_id = message.sender_id;
-        self.messages.entry(sender_id).or_default().push(message);
+        let sender_id = &message.sender_id;
+        self.messages
+            .entry(sender_id.to_owned())
+            .or_default()
+            .push(message);
         Ok(())
     }
 }
