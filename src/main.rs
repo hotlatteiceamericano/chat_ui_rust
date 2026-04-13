@@ -1,4 +1,7 @@
-use std::io::{self, Write};
+use std::{
+    io::{self, Write},
+    sync::Arc,
+};
 
 use chat_common::message::Message;
 use color_eyre::eyre::{Context, Result};
@@ -24,7 +27,18 @@ pub mod http_server;
 
 #[tokio::main]
 async fn main() -> color_eyre::Result<()> {
-    // todo: add tracing
+    let log_dir = dirs::home_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join(".chat_ui_rust");
+    let file_appender = tracing_appender::rolling::daily(&log_dir, "app.log");
+    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+    tracing_subscriber::fmt()
+        .with_writer(non_blocking)
+        .with_ansi(false)
+        .init();
+
+    tracing::info!("application starting");
+
     let http_server_url = std::env::var("HTTP_SERVER_URL").expect("HTTP server url required");
 
     color_eyre::install()?;
@@ -35,7 +49,7 @@ async fn main() -> color_eyre::Result<()> {
     io::stdin().read_line(&mut input)?;
     let user_email = input.trim().to_string();
 
-    let http_server = HttpServer::new(http_server_url);
+    let http_server = Arc::new(HttpServer::new(http_server_url));
     let login_response = http_server
         .login(&user_email)
         .await
@@ -55,7 +69,7 @@ async fn main() -> color_eyre::Result<()> {
     let (outbound_tx, outbound_rx) = mpsc::unbounded_channel::<Message>();
     let (ws_sender, ws_receiver) = connect_websocket(
         &auth_response.websocket_url,
-        &user_email,
+        &login_response.user_id,
         &auth_response.jwt_token,
     )
     .await?;
@@ -65,12 +79,22 @@ async fn main() -> color_eyre::Result<()> {
     spawn_outbound_message_task(outbound_rx, ws_sender);
 
     spawn_terminal_task(app_tx.clone())?;
-    let mut app = App::new(login_response.user_id, app_rx, outbound_tx);
+    let mut app = App::new(
+        login_response.user_id,
+        app_rx,
+        app_tx.clone(),
+        outbound_tx,
+        http_server.clone(),
+    );
 
     let mut terminal = ratatui::init();
     let result = app.run(&mut terminal).await;
 
     ratatui::restore();
+
+    if let Err(e) = &result {
+        eprintln!("{:?}", e);
+    }
     result
 }
 

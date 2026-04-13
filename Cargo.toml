@@ -13,5 +13,9 @@ futures-util = "0.3.32"
 serde_json = "1.0.149"
 serde = "1.0.228"
 color-eyre = "0.6.5"
-chat_common = {git="https://github.com/hotlatteiceamericano/chat_common"}
+chat_common = {git="https://github.com/hotlatteiceamericano/chat_common", features = ["mongodb"]}
 reqwest = {version = "0.12", features = ["json"]}
+tracing = "0.1.44"
+tracing-subscriber = "0.3.23"
+tracing-appender = "0.2.4"
+dirs = "6.0.0"

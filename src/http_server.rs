@@ -1,4 +1,4 @@
-use chat_common::{auth_response::AuthResponse, login_response::LoginResponse};
+use chat_common::{auth_response::AuthResponse, login_response::LoginResponse, user::User};
 use color_eyre::eyre::Context;
 
 pub struct HttpServer {
@@ -44,6 +44,24 @@ impl HttpServer {
 
         serde_json::from_str::<AuthResponse>(&response_text).context(format!(
             "cannot deserialize auth response: {}",
+            response_text
+        ))
+    }
+
+    pub async fn get_user_by_email(&self, email: &str) -> color_eyre::Result<User> {
+        let response_text = self
+            .client
+            .get(self.endpoint("user"))
+            .query(&[("email", email)])
+            .send()
+            .await
+            .context("cannot make get_user_by_email request to http server")?
+            .text()
+            .await
+            .context("cannot read get_user_by_email response body")?;
+
+        serde_json::from_str::<User>(&response_text).context(format!(
+            "cannot deserialize get_user_by_email response: {}",
             response_text
         ))
     }
